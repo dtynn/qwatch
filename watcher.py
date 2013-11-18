@@ -21,12 +21,15 @@ class processHandler(ProcessEvent):
         accessKey = kargs.get('ak')
         secretKey = kargs.get('sk')
         bucket = kargs.get('bucket')
-
-        qConf.ACCESS_KEY = accessKey
-        qConf.SECRET_KEY = secretKey
-        policy = qRs.PutPolicy(bucket)
-        self.policy = policy
-        return
+        rootPath = kargs.get('root')
+        if accessKey and secretKey and bucket and rootPath:
+            qConf.ACCESS_KEY = accessKey
+            qConf.SECRET_KEY = secretKey
+            policy = qRs.PutPolicy(bucket)
+            self.policy = policy
+            return
+        else:
+            raise WatcherError('not enough parameters')
 
     def process_IN_CLOSE_WRITE(self, event):
         token = self.policy.token()
@@ -50,14 +53,15 @@ def optParser():
 def main():
     basePath, confPath = optParser()
     if not basePath:
-        logging.error('Need a path to watch')
-        return
+        raise WatcherError('need the base path')
     if not confPath:
-        logging.error('Need a config file')
-        return
+        raise WatcherError('need a config file')
 
     with open(confPath, 'r') as conf:
         confContent = conf.read()
+
+    if not confContent:
+        raise WatcherError('Empty conf file')
 
     try:
         conf = json.loads(confContent)
@@ -66,7 +70,7 @@ def main():
         bucket = conf.get('bucket')
     except Exception as e:
         logging.error(e)
-        return
+        raise WatcherError('not a valid json string')
 
     wm = WatchManager()
     mask = pyinotify.IN_CLOSE_WRITE
