@@ -1,6 +1,6 @@
 #coding=utf-8
 import pyinotify
-from pyinotify import WatchManager, Notifier, ProcessEvent, ExcludeFilter
+from pyinotify import WatchManager, Notifier, ProcessEvent, ExcludeFilter, ThreadedNotifier, AsyncNotifier
 from optparse import OptionParser
 import logging
 import json
