@@ -3,15 +3,35 @@ import pyinotify
 from pyinotify import WatchManager, Notifier, ProcessEvent, ExcludeFilter
 from optparse import OptionParser
 import logging
+import json
+from qiniu import rs as qRs, conf as qConf, io as qIo
 
 
 logging.basicConfig(level=logging.DEBUG,
                     format='[%(levelname)1.1s %(asctime)1.19s %(module)s:%(lineno)d] %(message)s')
 
 
+class WatcherError(Exception):
+    def __init__(self, message=None):
+        Exception.__init__(self, "Watcher Error: %s" % (message,))
+
+
 class processHandler(ProcessEvent):
+    def my_init(self, **kargs):
+        accessKey = kargs.get('ak')
+        secretKey = kargs.get('sk')
+        bucket = kargs.get('bucket')
+
+        qConf.ACCESS_KEY = accessKey
+        qConf.SECRET_KEY = secretKey
+        policy = qRs.PutPolicy(bucket)
+        self.policy = policy
+        return
+
     def process_IN_CLOSE_WRITE(self, event):
-        print event.pathname
+        token = self.policy.token()
+        key = ''
+        qIo.put_file(token, key, event.pathname, None)
         return
 
 
@@ -28,12 +48,24 @@ def optParser():
 
 
 def main():
-    basePath, confFile = optParser()
+    basePath, confPath = optParser()
     if not basePath:
         logging.error('Need a path to watch')
         return
-    if not confFile:
+    if not confPath:
         logging.error('Need a config file')
+        return
+
+    with open(confPath, 'r') as conf:
+        confContent = conf.read()
+
+    try:
+        conf = json.loads(confContent)
+        ak = conf.get('ak')
+        sk = conf.get('sk')
+        bucket = conf.get('bucket')
+    except Exception as e:
+        logging.error(e)
         return
 
     wm = WatchManager()
@@ -41,7 +73,7 @@ def main():
     excl_list = ['^.*/m3u8$', ]
     excl = ExcludeFilter(excl_list)
     wadd = wm.add_watch(basePath, mask, rec=True, exclude_filter=excl)
-    notifier = Notifier(wm, processHandler())
+    notifier = Notifier(wm, processHandler(ak=ak, sk=sk, bucket=bucket))
     while True:
         try:
             notifier.process_events()
