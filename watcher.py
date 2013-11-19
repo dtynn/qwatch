@@ -83,6 +83,10 @@ def main():
     if not confContent:
         raise WatcherError('Empty conf file')
 
+    if not basePath.endswith('/'):
+        basePath = '%s/' % (basePath, )
+        pass
+
     try:
         conf = json.loads(confContent)
         ak = conf.get('accesskey')
