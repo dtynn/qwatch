@@ -51,7 +51,7 @@ class processHandler(ProcessEvent):
         pathName = event.pathname
         logging.info('Put:%s' % (pathName,))
         key = pathName.split(self.root)[-1]
-        p = Process(target=uploader, args=(token, key, event, None))
+        p = Process(target=uploader, args=(token, key, pathName, None))
         p.start()
         p.join()
         #qIo.put_file(token, key, event.pathname, None)
