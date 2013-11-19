@@ -17,6 +17,53 @@ class WatcherError(Exception):
         Exception.__init__(self, "Watcher Error: %s" % (message,))
 
 
+def livePlaylist(content, prefix=None, listSize=3, allowCache=False):
+    if not content:
+        return ''
+    contentList = content.split('\n')
+    cacheTagCt = 0
+    cacheTag = '#EXT-X-ALLOW-CACHE:YES' \
+        if (allowCache is True) \
+        else '#EXT-X-ALLOW-CACHE:NO'
+    hasSegSec = False
+    inSegSec = False
+    segSecStart = -1
+    segSecEnd = -1
+
+    for n, c in enumerate(contentList):
+        if c.startswith('#EXT-X-ALLOW-CACHE'):  # cache tag
+            cacheTagCt += 1
+            contentList[n] = cacheTag
+        elif inSegSec is False and c.startswith('#EXTINF'):
+            hasSegSec = True
+            segSecStart = n
+            inSegSec = True
+        elif inSegSec is True and c.startswith('#') and c.startswith('#EXTINF') is not True:
+            segSecEnd = n
+            inSegSec = False
+        else:
+            pass
+
+    if hasSegSec is True:
+        headSec = contentList[:segSecStart]
+        start = - listSize * 2
+        seqSec = contentList[segSecStart:][start:] if inSegSec else contentList[segSecStart:segSecEnd][start:]
+        if prefix:
+            for ln, line in enumerate(seqSec):
+                if line.startswith('#') is not True:
+                    seqSec[ln] = '%s%s' % (prefix, line)
+        tailSec = [] if inSegSec else contentList[segSecEnd:]
+        return '%s\n%s\n%s' % ('\n'.join(headSec), '\n'.join(seqSec), '\n'.join(tailSec))
+    else:
+        return '\n'.join(contentList)
+
+
+def listOutput(fPath, content):
+    with file(fPath, 'w') as f:
+        f.write(content)
+    return
+
+
 def uploader(token, key, filePath, putExtra):
     logging.info('Put: %s => %s' % (filePath, key))
     ret, err = qIo.put_file(token, key, filePath, putExtra)
@@ -28,14 +75,30 @@ def uploader(token, key, filePath, putExtra):
     return
 
 
+def liver(listPath, domain):
+    livePath = '%s_live.m3u8' % (listPath.split('.m3u8')[0],)
+    logging.info('Make playlist: %s => %s' % (listPath, livePath))
+    with open(listPath, 'r') as f:
+        content = f.read()
+    liveContent = livePlaylist(content, domain)
+    listOutput(livePath, liveContent)
+    logging.info('Make playlist done:%s => %s' % (listPath, livePath))
+    return
+
+
 class processHandler(ProcessEvent):
     def my_init(self, **kargs):
-        accessKey = str(kargs.get('ak'))
-        secretKey = str(kargs.get('sk'))
-        bucket = str(kargs.get('bucket'))
-        rootPath = str(kargs.get('root'))
-        self.root = rootPath
-        if accessKey and secretKey and bucket and rootPath:
+        accessKey = kargs.get('ak')
+        secretKey = kargs.get('sk')
+        bucket = kargs.get('bucket')
+        rootPath = kargs.get('root')
+        domain = kargs.get('domain')
+        if accessKey and secretKey and bucket and rootPath and domain:
+            accessKey = str(accessKey)
+            secretKey = str(accessKey)
+            bucket = str(bucket)
+            self.domain = str(domain)
+            self.root = str(rootPath)
             qConf.ACCESS_KEY = accessKey
             qConf.SECRET_KEY = secretKey
             policy = qRs.PutPolicy(bucket)
@@ -45,17 +108,25 @@ class processHandler(ProcessEvent):
             raise WatcherError('not enough parameters')
 
     def process_IN_CLOSE_WRITE(self, event):
+        pathName = event.pathname
         if event.name.startswith('.') or event.name.endswith('~') or event.name == '4913':
             return
-        token = self.policy.token()
-        pathName = event.pathname
-        logging.info('Put:%s' % (pathName,))
-        key = pathName.split(self.root)[-1]
-        p = Process(target=uploader, args=(token, key, pathName, None))
-        p.start()
-        p.join()
-        #qIo.put_file(token, key, event.pathname, None)
-        return
+        elif event.name.endswith('.m3u8'):
+            #make live list
+            p = Process(target=liver, args=(pathName, self.domain))
+            p.start()
+            p.join()
+            return
+        elif event.name.endswith('.ts'):
+            token = self.policy.token()
+            key = pathName.split(self.root)[-1]
+            p = Process(target=uploader, args=(token, key, pathName, None))
+            p.start()
+            p.join()
+            #qIo.put_file(token, key, event.pathname, None)
+            return
+        else:
+            return
 
 
 def optParser():
@@ -92,6 +163,7 @@ def main():
         ak = conf.get('accesskey')
         sk = conf.get('secretkey')
         bucket = conf.get('bucket')
+        domain = conf.get('domain')
     except Exception as e:
         logging.error(e)
         raise WatcherError('not a valid json string')
@@ -101,7 +173,7 @@ def main():
     excl_list = ['^.*/m3u8$', ]
     excl = ExcludeFilter(excl_list)
     wadd = wm.add_watch(basePath, mask, rec=True, exclude_filter=excl)
-    notifier = Notifier(wm, processHandler(ak=ak, sk=sk, bucket=bucket, root=basePath))
+    notifier = Notifier(wm, processHandler(ak=ak, sk=sk, bucket=bucket, root=basePath, domain=domain))
     while True:
         try:
             notifier.process_events()
