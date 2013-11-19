@@ -34,8 +34,11 @@ class processHandler(ProcessEvent):
             raise WatcherError('not enough parameters')
 
     def process_IN_CLOSE_WRITE(self, event):
+        if event.name.startswith('.') or event.name.endswith('~') or event.name == '4913':
+            return
         token = self.policy.token()
         pathName = event.pathname
+        logging.info('Put:%s' % (pathName,))
         key = pathName.split(self.root)[-1]
         Process(target=qIo.put_file, args=(token, key, event, None))
         #qIo.put_file(token, key, event.pathname, None)
