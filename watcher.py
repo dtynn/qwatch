@@ -5,7 +5,7 @@ import logging
 import json
 from qiniu import rs as qRs, conf as qConf, io as qIo
 from optparse import OptionParser
-from multiprocessing import Process
+from multiprocessing import Process,Pool
 
 
 logging.basicConfig(level=logging.DEBUG,
@@ -76,10 +76,9 @@ def uploader(token, key, filePath, putExtra):
     return
 
 
-def liver(listPath, domain):
-    livePathList = listPath.rsplit('/', 2)
-    livePathList[1] = 'livelist'
-    livePath = '/'.join(livePathList)
+def liver(listPath, listDir, domain):
+    liveListName = listPath.rsplit('/', 1)[-1]
+    livePath = '%s/%s' % (listDir, liveListName)
     logging.info('Make playlist: %s => %s' % (listPath, livePath))
     with open(listPath, 'r') as f:
         content = f.read()
@@ -96,12 +95,17 @@ class processHandler(ProcessEvent):
         bucket = kargs.get('bucket')
         rootPath = kargs.get('root')
         domain = kargs.get('domain')
-        if accessKey and secretKey and bucket and rootPath and domain:
+        listDir = kargs.get('listDir')
+        if accessKey and secretKey and bucket and rootPath and domain and listDir:
             accessKey = str(accessKey)
             secretKey = str(secretKey)
             self.bucket = str(bucket)
-            self.domain = str(domain)
+            if not domain.endswith('/'):
+                self.domain = '%s/' % (str(domain),)
+            else:
+                self.domain = str(domain)
             self.root = str(rootPath)
+            self.listDir = str(listDir)
             qConf.ACCESS_KEY = accessKey
             qConf.SECRET_KEY = secretKey
             policy = qRs.PutPolicy(self.bucket)
@@ -119,11 +123,19 @@ class processHandler(ProcessEvent):
             p = Process(target=liver, args=(pathName, self.domain))
             p.start()
             p.join()
+            #pool = Pool(processes=1)
+            #pool.apply_async(liver, (pathName, self.listDir, self.domain))
+            #pool.close()
+            #pool.join()
             return
         elif event.name.endswith('.ts'):
             key = pathName.split(self.root)[-1]
             self.policy.scope = '%s:%s' % (self.bucket, key)
             token = self.policy.token()
+            #pool = Pool(processes=1)
+            #pool.apply_async(uploader, (token, key,  pathName, None))
+            #pool.close()
+            #pool.join()
             p = Process(target=uploader, args=(token, key, pathName, None))
             p.start()
             p.join()
@@ -168,6 +180,7 @@ def main():
         sk = conf.get('secretkey')
         bucket = conf.get('bucket')
         domain = conf.get('domain')
+        listDir = conf.get('listdir')
     except Exception as e:
         logging.error(e)
         raise WatcherError('invalid json string')
@@ -177,7 +190,7 @@ def main():
     excl_list = ['^.*/livelist', ]
     excl = ExcludeFilter(excl_list)
     wadd = wm.add_watch(basePath, mask, rec=True, exclude_filter=excl)
-    notifier = Notifier(wm, processHandler(ak=ak, sk=sk, bucket=bucket, root=basePath, domain=domain))
+    notifier = Notifier(wm, processHandler(ak=ak, sk=sk, bucket=bucket, root=basePath, domain=domain, listDir=listDir))
     while True:
         try:
             notifier.process_events()
