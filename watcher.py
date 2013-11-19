@@ -17,12 +17,23 @@ class WatcherError(Exception):
         Exception.__init__(self, "Watcher Error: %s" % (message,))
 
 
+def uploader(token, key, filePath, putExtra):
+    logging.info('Put: %s => %s' % (filePath, key))
+    ret, err = qIo.put_file(token, key, filePath, putExtra)
+    if err:
+        res = 'fail'
+    else:
+        res = 'success'
+    logging.info('%s: %s => %s' % (res, filePath, key))
+    return
+
+
 class processHandler(ProcessEvent):
     def my_init(self, **kargs):
-        accessKey = kargs.get('ak')
-        secretKey = kargs.get('sk')
-        bucket = kargs.get('bucket')
-        rootPath = kargs.get('root')
+        accessKey = str(kargs.get('ak'))
+        secretKey = str(kargs.get('sk'))
+        bucket = str(kargs.get('bucket'))
+        rootPath = str(kargs.get('root'))
         self.root = rootPath
         if accessKey and secretKey and bucket and rootPath:
             qConf.ACCESS_KEY = accessKey
@@ -40,7 +51,7 @@ class processHandler(ProcessEvent):
         pathName = event.pathname
         logging.info('Put:%s' % (pathName,))
         key = pathName.split(self.root)[-1]
-        Process(target=qIo.put_file, args=(token, key, event, None))
+        Process(target=uploader, args=(token, key, event, None))
         #qIo.put_file(token, key, event.pathname, None)
         return
 
@@ -84,7 +95,7 @@ def main():
     excl_list = ['^.*/m3u8$', ]
     excl = ExcludeFilter(excl_list)
     wadd = wm.add_watch(basePath, mask, rec=True, exclude_filter=excl)
-    notifier = Notifier(wm, processHandler(ak=ak, sk=sk, bucket=bucket))
+    notifier = Notifier(wm, processHandler(ak=ak, sk=sk, bucket=bucket, root=basePath))
     while True:
         try:
             notifier.process_events()
