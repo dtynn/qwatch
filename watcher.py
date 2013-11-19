@@ -1,10 +1,11 @@
 #coding=utf-8
 import pyinotify
-from pyinotify import WatchManager, Notifier, ProcessEvent, ExcludeFilter, ThreadedNotifier, AsyncNotifier
-from optparse import OptionParser
+from pyinotify import WatchManager, Notifier, ProcessEvent, ExcludeFilter
 import logging
 import json
 from qiniu import rs as qRs, conf as qConf, io as qIo
+from optparse import OptionParser
+from multiprocessing import Process
 
 
 logging.basicConfig(level=logging.DEBUG,
@@ -22,6 +23,7 @@ class processHandler(ProcessEvent):
         secretKey = kargs.get('sk')
         bucket = kargs.get('bucket')
         rootPath = kargs.get('root')
+        self.root = rootPath
         if accessKey and secretKey and bucket and rootPath:
             qConf.ACCESS_KEY = accessKey
             qConf.SECRET_KEY = secretKey
@@ -33,8 +35,10 @@ class processHandler(ProcessEvent):
 
     def process_IN_CLOSE_WRITE(self, event):
         token = self.policy.token()
-        key = ''
-        qIo.put_file(token, key, event.pathname, None)
+        pathName = event.pathname
+        key = pathName.split(self.root)[-1]
+        Process(target=qIo.put_file, args=(token, key, event, None))
+        #qIo.put_file(token, key, event.pathname, None)
         return
 
 
@@ -65,8 +69,8 @@ def main():
 
     try:
         conf = json.loads(confContent)
-        ak = conf.get('ak')
-        sk = conf.get('sk')
+        ak = conf.get('accesskey')
+        sk = conf.get('secretkey')
         bucket = conf.get('bucket')
     except Exception as e:
         logging.error(e)
