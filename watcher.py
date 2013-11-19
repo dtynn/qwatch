@@ -46,14 +46,15 @@ def livePlaylist(content, prefix=None, listSize=3, allowCache=False):
 
     if hasSegSec is True:
         headSec = contentList[:segSecStart]
-        start = - listSize * 2
-        seqSec = contentList[segSecStart:][start:] if inSegSec else contentList[segSecStart:segSecEnd][start:]
+        start = - listSize * 2 - 1
+        segSec = contentList[segSecStart:][start:] if inSegSec else contentList[segSecStart:segSecEnd][start:]
         if prefix:
-            for ln, line in enumerate(seqSec):
-                if line.startswith('#') is not True:
-                    seqSec[ln] = '%s%s' % (prefix, line)
+            for ln, line in enumerate(segSec):
+                if line and line.startswith('#') is not True:
+                    segSec[ln] = '%s%s' % (prefix, line)
         tailSec = [] if inSegSec else contentList[segSecEnd:]
-        return '%s\n%s\n%s' % ('\n'.join(headSec), '\n'.join(seqSec), '\n'.join(tailSec))
+        #return '%s\n%s\n%s' % ('\n'.join(headSec), '\n'.join(segSec), '\n'.join(tailSec))
+        return '%s\n%s' % ('\n'.join(headSec), '\n'.join(segSec))
     else:
         return '\n'.join(contentList)
 
@@ -76,7 +77,9 @@ def uploader(token, key, filePath, putExtra):
 
 
 def liver(listPath, domain):
-    livePath = '%s_live.m3u8' % (listPath.split('.m3u8')[0],)
+    livePathList = listPath.rsplit('/', 2)
+    livePathList[1] = 'livelist'
+    livePath = '/'.join(livePathList)
     logging.info('Make playlist: %s => %s' % (listPath, livePath))
     with open(listPath, 'r') as f:
         content = f.read()
@@ -95,13 +98,13 @@ class processHandler(ProcessEvent):
         domain = kargs.get('domain')
         if accessKey and secretKey and bucket and rootPath and domain:
             accessKey = str(accessKey)
-            secretKey = str(accessKey)
-            bucket = str(bucket)
+            secretKey = str(secretKey)
+            self.bucket = str(bucket)
             self.domain = str(domain)
             self.root = str(rootPath)
             qConf.ACCESS_KEY = accessKey
             qConf.SECRET_KEY = secretKey
-            policy = qRs.PutPolicy(bucket)
+            policy = qRs.PutPolicy(self.bucket)
             self.policy = policy
             return
         else:
@@ -118,8 +121,9 @@ class processHandler(ProcessEvent):
             p.join()
             return
         elif event.name.endswith('.ts'):
-            token = self.policy.token()
             key = pathName.split(self.root)[-1]
+            self.policy.scope = '%s:%s' % (self.bucket, key)
+            token = self.policy.token()
             p = Process(target=uploader, args=(token, key, pathName, None))
             p.start()
             p.join()
@@ -166,11 +170,11 @@ def main():
         domain = conf.get('domain')
     except Exception as e:
         logging.error(e)
-        raise WatcherError('not a valid json string')
+        raise WatcherError('invalid json string')
 
     wm = WatchManager()
     mask = pyinotify.IN_CLOSE_WRITE
-    excl_list = ['^.*/m3u8$', ]
+    excl_list = ['^.*/livelist', ]
     excl = ExcludeFilter(excl_list)
     wadd = wm.add_watch(basePath, mask, rec=True, exclude_filter=excl)
     notifier = Notifier(wm, processHandler(ak=ak, sk=sk, bucket=bucket, root=basePath, domain=domain))
