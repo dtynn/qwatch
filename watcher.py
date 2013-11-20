@@ -20,7 +20,7 @@ class WatcherError(Exception):
 def livePlaylist(content, prefix=None, listSize=3, allowCache=False):
     if not content:
         return ''
-    contentList = content.split('\n')
+    contentList = filter(lambda x: bool(x), content.split('\n'))
     cacheTagCt = 0
     cacheTag = '#EXT-X-ALLOW-CACHE:YES' \
         if (allowCache is True) \
@@ -47,7 +47,7 @@ def livePlaylist(content, prefix=None, listSize=3, allowCache=False):
     if hasSegSec is True:
         headSec = contentList[:segSecStart]
         start = - listSize * 2
-        segSec = contentList[segSecStart:-1][start:] if inSegSec else contentList[segSecStart:segSecEnd][start:]
+        segSec = contentList[segSecStart:][start:] if inSegSec else contentList[segSecStart:segSecEnd][start:]
         if prefix:
             for ln, line in enumerate(segSec):
                 if line and line.startswith('#') is not True:
@@ -120,7 +120,7 @@ class processHandler(ProcessEvent):
             return
         elif event.name.endswith('.m3u8'):
             #make live list
-            p = Process(target=liver, args=(pathName, self.domain))
+            p = Process(target=liver, args=(pathName, self.listDir, self.domain))
             p.start()
             p.join()
             #pool = Pool(processes=1)
