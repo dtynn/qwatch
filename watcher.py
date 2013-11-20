@@ -69,6 +69,7 @@ def uploader(token, key, filePath, putExtra):
     logging.info('Put: %s => %s' % (filePath, key))
     ret, err = qIo.put_file(token, key, filePath, putExtra)
     if err:
+        logging.error(err)
         res = 'fail'
     else:
         res = 'success'
