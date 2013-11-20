@@ -54,8 +54,8 @@ def livePlaylist(content, prefix=None, listSize=3, allowCache=False):
                 if line and line.startswith('#') is not True:
                     segSec[ln] = '%s%s' % (prefix, line)
         tailSec = [] if inSegSec else contentList[segSecEnd:]
-        #return '%s\n%s\n%s' % ('\n'.join(headSec), '\n'.join(segSec), '\n'.join(tailSec))
-        return '%s\n%s' % ('\n'.join(headSec), '\n'.join(segSec))
+        return '%s\n%s\n%s' % ('\n'.join(headSec), '\n'.join(segSec), '\n'.join(tailSec))
+        #return '%s\n%s' % ('\n'.join(headSec), '\n'.join(segSec))
     else:
         return '\n'.join(contentList)
 
