@@ -191,6 +191,7 @@ def main():
     excl = ExcludeFilter(excl_list)
     wadd = wm.add_watch(basePath, mask, rec=True, exclude_filter=excl)
     notifier = Notifier(wm, processHandler(ak=ak, sk=sk, bucket=bucket, root=basePath, domain=domain, listDir=listDir))
+    logging.info('starting')
     while True:
         try:
             notifier.process_events()
