@@ -46,8 +46,9 @@ def livePlaylist(content, prefix=None, listSize=3, allowCache=False):
 
     if hasSegSec is True:
         headSec = contentList[:segSecStart]
-        start = - listSize * 2
-        segSec = contentList[segSecStart:][start:] if inSegSec else contentList[segSecStart:segSecEnd][start:]
+        #start = - listSize * 2
+        #segSec = contentList[segSecStart:][start:] if inSegSec else contentList[segSecStart:segSecEnd][start:]
+        segSec = contentList[segSecStart:] if inSegSec else contentList[segSecStart:segSecEnd]
         if prefix:
             for ln, line in enumerate(segSec):
                 if line and line.startswith('#') is not True:
