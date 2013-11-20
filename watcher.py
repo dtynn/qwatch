@@ -5,7 +5,7 @@ import logging
 import json
 from qiniu import rs as qRs, conf as qConf, io as qIo
 from optparse import OptionParser
-from multiprocessing import Process,Pool
+from multiprocessing import Process, Pool
 
 
 logging.basicConfig(level=logging.DEBUG,
@@ -110,6 +110,9 @@ class processHandler(ProcessEvent):
             qConf.SECRET_KEY = secretKey
             policy = qRs.PutPolicy(self.bucket)
             self.policy = policy
+            putExtra = qIo.PutExtra()
+            putExtra.mime_type = 'video/mp2t'
+            self.putExtra = putExtra
             return
         else:
             raise WatcherError('not enough parameters')
@@ -136,7 +139,7 @@ class processHandler(ProcessEvent):
             #pool.apply_async(uploader, (token, key,  pathName, None))
             #pool.close()
             #pool.join()
-            p = Process(target=uploader, args=(token, key, pathName, None))
+            p = Process(target=uploader, args=(token, key, pathName, self.putExtra))
             p.start()
             p.join()
             #qIo.put_file(token, key, event.pathname, None)
