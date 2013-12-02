@@ -6,7 +6,11 @@ from optparse import OptionParser
 
 class processHandler(ProcessEvent):
     def process_IN_CLOSE_WRITE(self, event):
-        print event.pathname
+        print 'WRITE', event.pathname
+        return
+
+    def process_IN_MODIFY(self, event):
+        print 'MODIFY', event.pathname
         return
 
 
@@ -24,10 +28,10 @@ def main():
     target_dir = optParser()
 
     wm = WatchManager()
-    mask = pyinotify.IN_CLOSE_WRITE
+    mask = pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MODIFY
     excl_list = ['^.*/m3u8$', ]
     excl = ExcludeFilter(excl_list)
-    wadd = wm.add_watch('/home/dtynn/work/test/inotify', mask, rec=True, exclude_filter=excl)
+    wadd = wm.add_watch('/home/videodemo/opentest/test_szy', mask, rec=True, exclude_filter=excl)
     notifier = Notifier(wm, processHandler())
     while True:
         try:

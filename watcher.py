@@ -9,7 +9,7 @@ from multiprocessing import Process, Pool
 
 
 logging.basicConfig(level=logging.DEBUG,
-                    format='[%(levelname)1.1s %(asctime)1.19s %(module)s:%(lineno)d] %(message)s')
+    format='[%(levelname)1.1s %(asctime)1.19s %(module)s:%(lineno)d] %(message)s')
 
 
 class WatcherError(Exception):
@@ -17,7 +17,7 @@ class WatcherError(Exception):
         Exception.__init__(self, "Watcher Error: %s" % (message,))
 
 
-def livePlaylist(content, prefix=None, listSize=3, allowCache=False):
+def livePlaylist(content, prefix=None, listSize=4, allowCache=False):
     if not content:
         return ''
     contentList = filter(lambda x: bool(x), content.split('\n'))
@@ -54,10 +54,10 @@ def livePlaylist(content, prefix=None, listSize=3, allowCache=False):
                 if line and line.startswith('#') is not True:
                     segSec[ln] = '%s%s' % (prefix, line)
         tailSec = [] if inSegSec else contentList[segSecEnd:]
-        return '%s\n%s\n%s' % ('\n'.join(headSec), '\n'.join(segSec), '\n'.join(tailSec))
-        #return '%s\n%s' % ('\n'.join(headSec), '\n'.join(segSec))
+        return '%s\n%s\n%s\n' % ('\n'.join(headSec), '\n'.join(segSec), '\n'.join(tailSec))
+        #return '%s\n%s\n' % ('\n'.join(headSec), '\n'.join(segSec))
     else:
-        return '\n'.join(contentList)
+        return '\n'.join(contentList) + '\n'
 
 
 def listOutput(fPath, content):
@@ -120,8 +120,10 @@ class processHandler(ProcessEvent):
             raise WatcherError('not enough parameters')
 
     def process_IN_CLOSE_WRITE(self, event):
+	logging.info('WRITE CLOSE:%s' % (event.pathname,))
         pathName = event.pathname
         if event.name.startswith('.') or event.name.endswith('~') or event.name == '4913':
+            logging.info("files not watch: " + event.name)
             return
         elif event.name.endswith('.m3u8'):
             #make live list
@@ -146,7 +148,21 @@ class processHandler(ProcessEvent):
             p.join()
             #qIo.put_file(token, key, event.pathname, None)
             return
+        elif event.name.endswith('.flv'):
+            key = pathName.split(self.root)[-1]
+            self.policy.scope = '%s:%s' % (self.bucket, key)
+            token = self.policy.token()
+            #pool = Pool(processes=1)
+            #pool.apply_async(uploader, (token, key,  pathName, None))
+            #pool.close()
+            #pool.join()
+            p = Process(target=uploader, args=(token, key, pathName, self.putExtra))
+            p.start()
+            p.join()
+            #qIo.put_file(token, key, event.pathname, None)
+            return
         else:
+            logging.info("other files change: " + event.name)
             return
 
 
